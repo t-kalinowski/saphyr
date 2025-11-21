@@ -207,7 +207,7 @@ impl<'a> YamlEmitter<'a> {
     /// followed by a newline.
     pub fn dump_docs(&mut self, docs: &[Yaml]) -> EmitResult {
         for doc in docs {
-            self.dump_with_document_start(doc, true)?;
+            self.dump(doc)?;
             self.writer.write_str("\n")?;
         }
         Ok(())
