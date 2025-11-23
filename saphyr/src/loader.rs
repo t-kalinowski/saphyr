@@ -214,6 +214,20 @@ pub trait LoadableYamlNode<'input>: Clone + core::hash::Hash + Eq {
     }
 }
 
+/// Core-schema collection tags like `!!seq` and `!!map` should not wrap the node in `Tagged`
+/// because they simply restate the node kind. All other tags—non-core or core tags with
+/// non-canonical suffixes—should be preserved so downstream consumers can see them.
+fn should_preserve_collection_tag(tag: &Tag) -> bool {
+    if !tag.is_yaml_core_schema() {
+        return true;
+    }
+
+    match tag.suffix.as_str() {
+        "seq" | "map" => false,
+        _ => true,
+    }
+}
+
 impl<'input, Node> YamlLoader<'input, Node>
 where
     Node: LoadableYamlNode<'input>,
@@ -282,7 +296,7 @@ where
                 let (mut node, anchor_id, tag) = self.doc_stack.pop().unwrap();
                 node = node.with_end_marker(mark);
                 if let Some(tag) = tag {
-                    if !tag.is_yaml_core_schema() {
+                    if should_preserve_collection_tag(&tag) {
                         node = node.into_tagged(tag);
                     }
                 }
@@ -318,7 +332,8 @@ where
         }
         if let Some((parent_node, _, _)) = self.doc_stack.last_mut() {
             if let Some(tag) = tag {
-                if (node.is_sequence() || node.is_mapping()) && !tag.is_yaml_core_schema() {
+                if (node.is_sequence() || node.is_mapping()) && should_preserve_collection_tag(&tag)
+                {
                     node = node.into_tagged(tag);
                 }
             }

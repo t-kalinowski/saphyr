@@ -1,4 +1,4 @@
-use saphyr::{LoadableYamlNode, Yaml};
+use saphyr::{LoadableYamlNode, Scalar, Yaml};
 
 #[test]
 fn f() {
@@ -129,4 +129,35 @@ fn core_schema_collection_tag() {
     assert!(items[0].as_sequence().is_some_and(Vec::is_empty));
     assert!(items[1].as_str().is_some_and(|s| s == "12"));
     assert!(items[2].as_integer().is_some_and(|i| i == 12));
+}
+
+#[test]
+fn unknown_core_tag_on_mapping_is_preserved() {
+    let docs = Yaml::load_from_str("!!foo {bar: 1}").unwrap();
+    let Yaml::Tagged(tag, node) = &docs[0] else {
+        panic!("expected Tagged");
+    };
+    assert_eq!(tag.handle, "tag:yaml.org,2002:");
+    assert_eq!(tag.suffix, "foo");
+
+    let map = node.as_mapping().expect("inner mapping");
+    assert_eq!(map.len(), 1);
+    let (k, v) = map.iter().next().expect("entry");
+    assert!(k.as_str().is_some_and(|s| s == "bar"));
+    assert!(v.as_integer().is_some_and(|i| i == 1));
+}
+
+#[test]
+fn core_set_tag_is_preserved_as_tagged_mapping() {
+    let docs = Yaml::load_from_str("!!set {bar, baz}").unwrap();
+    let Yaml::Tagged(tag, node) = &docs[0] else {
+        panic!("expected Tagged");
+    };
+    assert_eq!(tag.handle, "tag:yaml.org,2002:");
+    assert_eq!(tag.suffix, "set");
+
+    let map = node.as_mapping().expect("inner mapping");
+    assert_eq!(map.len(), 2);
+    assert!(map.contains_key(&Yaml::Value(Scalar::String("bar".into()))));
+    assert!(map.contains_key(&Yaml::Value(Scalar::String("baz".into()))));
 }
