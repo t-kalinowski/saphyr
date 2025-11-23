@@ -269,7 +269,15 @@ where
                     0 => self
                         .docs
                         .push(Node::from_bare_yaml(Yaml::BadValue).with_span(span)),
-                    1 => self.docs.push(self.doc_stack.pop().unwrap().0),
+                    1 => {
+                        let (mut node, _anchor, tag) = self.doc_stack.pop().unwrap();
+                        if let Some(tag) = tag {
+                            if should_preserve_collection_tag(&tag) {
+                                node = node.into_tagged(tag);
+                            }
+                        }
+                        self.docs.push(node);
+                    }
                     _ => unreachable!(),
                 }
             }
