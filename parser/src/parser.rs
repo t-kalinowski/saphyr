@@ -1215,6 +1215,26 @@ impl<'input, T: Input> Parser<'input, T> {
         handle: &str,
         suffix: String,
     ) -> Result<Cow<'input, Tag>, ScanError> {
+        const YAML_CORE_HANDLE: &str = "tag:yaml.org,2002:";
+
+        // Normalize verbatim core-schema tags so they match the primary handle.
+        if handle.is_empty() {
+            if let Some(core_suffix) = suffix.strip_prefix(YAML_CORE_HANDLE) {
+                if matches!(
+                    core_suffix,
+                    "bool" | "float" | "int" | "null" | "str" | "seq" | "map",
+                    // Some core types were valid in YAML 1.1, but were removed in YAML 1.2.
+                    // Still, the spec says that valid YAML 1.1 should mostly without error parse, and unknown tags should be ignored
+                    //  | "set" | "timestamp" | "binary" | "omap" | "pairs"
+                ) {
+                    return Ok(Cow::Owned(Tag {
+                        handle: YAML_CORE_HANDLE.to_string(),
+                        suffix: core_suffix.to_string(),
+                    }));
+                }
+            }
+        }
+
         let tag = if handle == "!!" {
             // "!!" is a shorthand for "tag:yaml.org,2002:". However, that default can be
             // overridden.

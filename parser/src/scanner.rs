@@ -1118,19 +1118,7 @@ impl<'input, T: Input> Scanner<'input, T> {
         self.input.lookahead(2);
 
         if self.input.nth_char_is(1, '<') {
-            let raw = self.scan_verbatim_tag(&start_mark)?;
-            const CORE: &str = "tag:yaml.org,2002:";
-            if raw.starts_with(CORE)
-                && matches!(
-                    &raw[CORE.len()..],
-                    "bool" | "float" | "int" | "null" | "str" | "seq" | "map"
-                )
-            {
-                handle = raw;
-                suffix = handle.split_off(CORE.len());
-            } else {
-                suffix = raw;
-            }
+            suffix = self.scan_verbatim_tag(&start_mark)?;
         } else {
             // The tag has either the '!suffix' or the '!handle!suffix'
             handle = self.scan_tag_handle(false, &start_mark)?;
