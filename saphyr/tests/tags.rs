@@ -9,8 +9,9 @@ fn f() {
         handle: "!".into(),
         suffix: "custom".into(),
     };
+    let parsed = parse("!custom 3");
     assert!(
-        matches!(parse("!custom 3"), Yaml::Tagged(tag, node) if tag.as_ref() == custom_tag && node.is_integer())
+        matches!(parsed, Yaml::Tagged(tag, node) if tag.as_ref() == custom_tag && node.is_integer())
     );
     assert!(
         matches!(parse("!custom 'foo'"), Yaml::Tagged(tag, node) if tag.as_ref() == custom_tag && node.is_string())
@@ -129,6 +130,36 @@ fn core_schema_collection_tag() {
     assert!(items[0].as_sequence().is_some_and(Vec::is_empty));
     assert!(items[1].as_str().is_some_and(|s| s == "12"));
     assert!(items[2].as_integer().is_some_and(|i| i == 12));
+}
+
+#[test]
+fn verbatim_core_tags_match_primary_handle() {
+    let docs = Yaml::load_from_str(
+        "
+- !!str foo
+- !<tag:yaml.org,2002:str> foo
+- !<tag:yaml.org,2002:int> 2
+",
+    )
+    .unwrap();
+    let doc = &docs[0];
+
+    let seq = doc.as_sequence().expect("document sequence");
+    assert!(matches!(seq[0], Yaml::Value(Scalar::String(ref s)) if s == "foo"));
+    assert!(matches!(seq[1], Yaml::Value(Scalar::String(ref s)) if s == "foo"));
+    assert!(matches!(seq[2], Yaml::Value(Scalar::Integer(i)) if i == 2));
+}
+
+#[test]
+fn verbatim_core_prefix_unknown_suffix_is_not_split() {
+    let docs = Yaml::load_from_str("- !<tag:yaml.org,2002:foo> 1").unwrap();
+    let seq = docs[0].as_sequence().expect("document sequence");
+    let Yaml::Tagged(tag, node) = &seq[0] else {
+        panic!("expected Tagged");
+    };
+    assert!(tag.handle.is_empty());
+    assert_eq!(tag.suffix, "tag:yaml.org,2002:foo");
+    assert!(matches!(**node, Yaml::Value(Scalar::Integer(1))));
 }
 
 #[test]

@@ -265,19 +265,19 @@ where
             }
             Event::DocumentEnd => {
                 match self.doc_stack.len() {
-                    // empty document
-                    0 => self
-                        .docs
-                        .push(Node::from_bare_yaml(Yaml::BadValue).with_span(span)),
-                    1 => {
-                        let (mut node, _anchor, tag) = self.doc_stack.pop().unwrap();
-                        if let Some(tag) = tag {
-                            if should_preserve_collection_tag(&tag) {
-                                node = node.into_tagged(tag);
-                            }
+                // empty document
+                0 => self
+                    .docs
+                    .push(Node::from_bare_yaml(Yaml::BadValue).with_span(span)),
+                1 => {
+                    let (mut node, _anchor, tag) = self.doc_stack.pop().unwrap();
+                    if let Some(tag) = tag {
+                        if should_preserve_collection_tag(&tag) {
+                            node = node.into_tagged(tag);
                         }
-                        self.docs.push(node);
                     }
+                    self.docs.push(node);
+                }
                     _ => unreachable!(),
                 }
             }
@@ -316,7 +316,9 @@ where
                 } else {
                     Yaml::Representation(v, style, tag.clone())
                 };
-                self.insert_new_node(Node::from_bare_yaml(node).with_span(span), aid, tag);
+                // `value_from_cow_and_metadata` already embeds scalar tags when they should be
+                // preserved, so we don't need to propagate the tag separately on scalars.
+                self.insert_new_node(Node::from_bare_yaml(node).with_span(span), aid, None);
             }
             Event::Alias(id) => {
                 let n = match self.anchor_map.get(&id) {
