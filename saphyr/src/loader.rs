@@ -269,15 +269,7 @@ where
                     0 => self
                         .docs
                         .push(Node::from_bare_yaml(Yaml::BadValue).with_span(span)),
-                    1 => {
-                        let (mut node, _anchor, tag) = self.doc_stack.pop().unwrap();
-                        if let Some(tag) = tag {
-                            if should_preserve_collection_tag(&tag) {
-                                node = node.into_tagged(tag);
-                            }
-                        }
-                        self.docs.push(node);
-                    }
+                    1 => self.docs.push(self.doc_stack.pop().unwrap().0),
                     _ => unreachable!(),
                 }
             }
@@ -308,7 +300,7 @@ where
                         node = node.into_tagged(tag);
                     }
                 }
-                self.insert_new_node(node, anchor_id, None);
+                self.insert_new_node(node, anchor_id);
             }
             Event::Scalar(v, style, aid, tag) => {
                 let node = if self.early_parse {
@@ -318,14 +310,14 @@ where
                 };
                 // `value_from_cow_and_metadata` already embeds scalar tags when they should be
                 // preserved, so we don't need to propagate the tag separately on scalars.
-                self.insert_new_node(Node::from_bare_yaml(node).with_span(span), aid, None);
+                self.insert_new_node(Node::from_bare_yaml(node).with_span(span), aid);
             }
             Event::Alias(id) => {
                 let n = match self.anchor_map.get(&id) {
                     Some(v) => v.clone(),
                     None => Node::from_bare_yaml(Yaml::BadValue),
                 };
-                self.insert_new_node(n.with_span(span), 0, None);
+                self.insert_new_node(n.with_span(span), 0);
             }
         }
     }
@@ -335,18 +327,12 @@ impl<'input, Node> YamlLoader<'input, Node>
 where
     Node: LoadableYamlNode<'input>,
 {
-    fn insert_new_node(&mut self, mut node: Node, anchor_id: usize, tag: Option<Cow<'input, Tag>>) {
+    fn insert_new_node(&mut self, node: Node, anchor_id: usize) {
         // valid anchor id starts from 1
         if anchor_id > 0 {
             self.anchor_map.insert(anchor_id, node.clone());
         }
         if let Some((parent_node, _, _)) = self.doc_stack.last_mut() {
-            if let Some(tag) = tag {
-                if (node.is_sequence() || node.is_mapping()) && should_preserve_collection_tag(&tag)
-                {
-                    node = node.into_tagged(tag);
-                }
-            }
             if parent_node.is_sequence() {
                 parent_node.sequence_mut().push(node);
             } else if parent_node.is_mapping() {
@@ -361,7 +347,7 @@ where
                 }
             }
         } else {
-            self.doc_stack.push((node, anchor_id, tag));
+            self.doc_stack.push((node, anchor_id, None));
         }
     }
 }
