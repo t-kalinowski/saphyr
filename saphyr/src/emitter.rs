@@ -189,24 +189,6 @@ impl<'a> YamlEmitter<'a> {
         self.emit_node(doc)
     }
 
-    /// Dump Yaml to an output stream, optionally skipping the leading
-    /// document start marker (`---`).
-    ///
-    /// # Errors
-    /// Returns `EmitError` when an error occurs.
-    pub fn dump_with_document_start(
-        &mut self,
-        doc: &Yaml,
-        include_document_start: bool,
-    ) -> EmitResult {
-        if include_document_start {
-            // write DocumentStart
-            writeln!(self.writer, "---")?;
-        }
-        self.level = -1;
-        self.emit_node(doc)
-    }
-
     /// Dump multiple YAML documents to an output stream as a stream.
     ///
     /// Each document is preceded by a document start marker (`---`) and
