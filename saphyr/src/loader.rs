@@ -265,19 +265,19 @@ where
             }
             Event::DocumentEnd => {
                 match self.doc_stack.len() {
-                // empty document
-                0 => self
-                    .docs
-                    .push(Node::from_bare_yaml(Yaml::BadValue).with_span(span)),
-                1 => {
-                    let (mut node, _anchor, tag) = self.doc_stack.pop().unwrap();
-                    if let Some(tag) = tag {
-                        if should_preserve_collection_tag(&tag) {
-                            node = node.into_tagged(tag);
+                    // empty document
+                    0 => self
+                        .docs
+                        .push(Node::from_bare_yaml(Yaml::BadValue).with_span(span)),
+                    1 => {
+                        let (mut node, _anchor, tag) = self.doc_stack.pop().unwrap();
+                        if let Some(tag) = tag {
+                            if should_preserve_collection_tag(&tag) {
+                                node = node.into_tagged(tag);
+                            }
                         }
+                        self.docs.push(node);
                     }
-                    self.docs.push(node);
-                }
                     _ => unreachable!(),
                 }
             }
