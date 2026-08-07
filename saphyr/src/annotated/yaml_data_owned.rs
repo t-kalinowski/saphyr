@@ -107,7 +107,6 @@ where
                 // to manually compute the hash. Otherwise, we'd use `h.get()`, which complains the
                 // needle's lifetime doesn't match that of the key in `h`.
                 let hash = mapping.hasher().hash_one(&needle);
-
                 mapping
                     .raw_entry()
                     .from_hash(hash, |candidate| *candidate == needle)
@@ -130,7 +129,6 @@ where
                 let needle =
                     Node::HashKey::from(YamlDataOwned::Value(ScalarOwned::String(key.to_string())));
                 let hash = mapping.hasher().hash_one(&needle);
-
                 match mapping
                     .raw_entry_mut()
                     .from_hash(hash, |candidate| *candidate == needle)

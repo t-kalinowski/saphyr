@@ -8,6 +8,7 @@ use alloc::string::String;
 
 /// A parser input that uses a `&str` as source.
 #[allow(clippy::module_name_repetitions)]
+#[derive(Clone, Copy)]
 pub struct StrInput<'a> {
     /// The input str buffer.
     buffer: &'a str,
@@ -243,22 +244,12 @@ impl Input for StrInput<'_> {
     #[allow(clippy::inline_always)]
     #[inline(always)]
     fn next_can_be_plain_scalar(&self, in_flow: bool) -> bool {
-        let c = self.buffer.as_bytes()[0];
-        if self.buffer.len() > 1 {
-            let nc = self.buffer.as_bytes()[1];
-            match c {
-                // indicators can end a plain scalar, see 7.3.3. Plain Style
-                b':' if is_blank_or_breakz(nc as char) || (in_flow && is_flow(nc as char)) => false,
-                c if in_flow && is_flow(c as char) => false,
-                _ => true,
-            }
-        } else {
-            match c {
-                // indicators can end a plain scalar, see 7.3.3. Plain Style
-                b':' => false,
-                c if in_flow && is_flow(c as char) => false,
-                _ => true,
-            }
+        let nc = self.peek_nth(1);
+        match self.peek() {
+            // indicators can end a plain scalar, see 7.3.3. Plain Style
+            ':' if is_blank_or_breakz(nc) || (in_flow && is_flow(nc)) => false,
+            c if in_flow && is_flow(c) => false,
+            _ => true,
         }
     }
 
@@ -355,6 +346,34 @@ impl Input for StrInput<'_> {
         }
 
         let remaining_string = if let Some(c) = not_alpha {
+            let n_bytes_read = chars.as_str().as_ptr() as usize - self.buffer.as_ptr() as usize;
+            let last_char_bytes = c.len_utf8();
+            &self.buffer[n_bytes_read - last_char_bytes..]
+        } else {
+            chars.as_str()
+        };
+
+        let n_bytes_to_append = remaining_string.as_ptr() as usize - self.buffer.as_ptr() as usize;
+        out.reserve(n_bytes_to_append);
+        out.push_str(&self.buffer[..n_bytes_to_append]);
+        self.buffer = remaining_string;
+
+        n_bytes_to_append
+    }
+
+    fn fetch_while_is_yaml_non_space(&mut self, out: &mut String) -> usize {
+        let mut not_non_space = None;
+
+        // Skip while we have non-space characters.
+        let mut chars = self.buffer.chars();
+        for c in chars.by_ref() {
+            if !crate::char_traits::is_yaml_non_space(c) {
+                not_non_space = Some(c);
+                break;
+            }
+        }
+
+        let remaining_string = if let Some(c) = not_non_space {
             let n_bytes_read = chars.as_str().as_ptr() as usize - self.buffer.as_ptr() as usize;
             let last_char_bytes = c.len_utf8();
             &self.buffer[n_bytes_read - last_char_bytes..]

@@ -242,6 +242,13 @@ pub enum TokenType<'input> {
     ),
     /// A regular YAML scalar.
     Scalar(ScalarStyle, Cow<'input, str>),
+    /// A reserved YAML directive.
+    ReservedDirective(
+        /// Name
+        String,
+        /// Parameters
+        Vec<String>,
+    ),
 }
 
 /// A scanner token.
@@ -373,7 +380,7 @@ struct Indent {
 ///
 /// [`FlowMappingStart`]: TokenType::FlowMappingStart
 /// [`FlowMappingEnd`]: TokenType::FlowMappingEnd
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum ImplicitMappingState {
     /// It is possible there is an implicit mapping.
     ///
@@ -464,9 +471,40 @@ pub struct Scanner<'input, T> {
     /// [`Possible`]: ImplicitMappingState::Possible
     /// [`Inside`]: ImplicitMappingState::Inside
     implicit_flow_mapping_states: Vec<ImplicitMappingState>,
+    /// If a plain scalar was terminated by a `#` comment on its line, we set this
+    /// to detect an illegal multiline continuation on the following line.
+    interrupted_plain_by_comment: Option<Marker>,
     buf_leading_break: String,
     buf_trailing_breaks: String,
     buf_whitespaces: String,
+}
+
+impl<T: Input + Clone> Clone for Scanner<'_, T> {
+    fn clone(&self) -> Self {
+        Self {
+            input: self.input.clone(),
+            mark: self.mark,
+            tokens: self.tokens.clone(),
+            error: self.error.clone(),
+            stream_start_produced: self.stream_start_produced,
+            stream_end_produced: self.stream_end_produced,
+            adjacent_value_allowed_at: self.adjacent_value_allowed_at,
+            simple_key_allowed: self.simple_key_allowed,
+            simple_keys: self.simple_keys.clone(),
+            indent: self.indent,
+            indents: self.indents.clone(),
+            flow_level: self.flow_level,
+            tokens_parsed: self.tokens_parsed,
+            token_available: self.token_available,
+            leading_whitespace: self.leading_whitespace,
+            flow_mapping_started: self.flow_mapping_started,
+            implicit_flow_mapping_states: self.implicit_flow_mapping_states.clone(),
+            interrupted_plain_by_comment: self.interrupted_plain_by_comment,
+            buf_leading_break: self.buf_leading_break.clone(),
+            buf_trailing_breaks: self.buf_trailing_breaks.clone(),
+            buf_whitespaces: self.buf_whitespaces.clone(),
+        }
+    }
 }
 
 impl<'input, T: Input> Iterator for Scanner<'input, T> {
@@ -519,6 +557,7 @@ impl<'input, T: Input> Scanner<'input, T> {
             leading_whitespace: true,
             flow_mapping_started: false,
             implicit_flow_mapping_states: vec![],
+            interrupted_plain_by_comment: None,
 
             buf_leading_break: String::new(),
             buf_trailing_breaks: String::new(),
@@ -865,6 +904,29 @@ impl<'input, T: Input> Scanner<'input, T> {
                 _ => break,
             }
         }
+        // If a plain scalar was interrupted by a comment, and the next line could
+        // continue the scalar in block context, this is invalid.
+        if let Some(err_mark) = self.interrupted_plain_by_comment.take() {
+            // Ensure enough lookahead for the check below (peek and peek_nth) and for
+            // document indicator detection which needs 4 chars.
+            self.input.lookahead(4);
+            // BS4K should only trigger when the continuation would start on the immediate next
+            // line (no intervening empty/comment-only lines). A blank line resets the folding
+            // opportunity and thus should not error.
+            let is_immediate_next_line = self.mark.line == err_mark.line + 1;
+            if self.flow_level == 0
+                && is_immediate_next_line
+                && self.mark.col as isize > self.indent
+                && !self.input.next_is_z()
+                && !self.input.next_is_document_indicator()
+                && self.input.next_can_be_plain_scalar(false)
+            {
+                return Err(ScanError::new_str(
+                    err_mark,
+                    "comment intercepting the multiline text",
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -969,19 +1031,26 @@ impl<'input, T: Input> Scanner<'input, T> {
         let tok = match name.as_ref() {
             "YAML" => self.scan_version_directive_value(&start_mark)?,
             "TAG" => self.scan_tag_directive_value(&start_mark)?,
-            // XXX This should be a warning instead of an error
             _ => {
-                // skip current line
-                let line_len = self.input.skip_while_non_breakz();
-                self.mark.index += line_len;
-                self.mark.col += line_len;
-                // XXX return an empty TagDirective token
+                let mut params = Vec::new();
+                while self.input.next_is_blank() {
+                    let n_blanks = self.input.skip_while_blank();
+                    self.mark.index += n_blanks;
+                    self.mark.col += n_blanks;
+
+                    if !is_blank_or_breakz(self.input.peek()) {
+                        let mut param = String::new();
+                        let n_chars = self.input.fetch_while_is_yaml_non_space(&mut param);
+                        self.mark.index += n_chars;
+                        self.mark.col += n_chars;
+                        params.push(param);
+                    }
+                }
+
                 Token(
                     Span::new(start_mark, self.mark),
-                    TokenType::TagDirective(Cow::default(), Cow::default()),
+                    TokenType::ReservedDirective(name, params),
                 )
-                // return Err(ScanError::new_str(start_mark,
-                //     "while scanning a directive, found unknown directive name"))
             }
         };
 
@@ -1026,7 +1095,7 @@ impl<'input, T: Input> Scanner<'input, T> {
         let start_mark = self.mark;
         let mut string = String::new();
 
-        let n_chars = self.input.fetch_while_is_alpha(&mut string);
+        let n_chars = self.input.fetch_while_is_yaml_non_space(&mut string);
         self.mark.index += n_chars;
         self.mark.col += n_chars;
 
@@ -1374,7 +1443,10 @@ impl<'input, T: Input> Scanner<'input, T> {
         }
 
         if string.is_empty() {
-            return Err(ScanError::new_str(start_mark, "while scanning an anchor or alias, did not find expected alphabetic or numeric character"));
+            return Err(ScanError::new_str(
+                start_mark,
+                "while scanning an anchor or alias, did not find expected alphabetic or numeric character",
+            ));
         }
 
         let tok = if alias {
@@ -1412,6 +1484,11 @@ impl<'input, T: Input> Scanner<'input, T> {
     }
 
     fn fetch_flow_collection_end(&mut self, tok: TokenType<'input>) -> ScanResult {
+        // A closing bracket without a corresponding opening is invalid YAML.
+        if self.flow_level == 0 {
+            return Err(ScanError::new_str(self.mark, "misplaced bracket"));
+        }
+
         self.remove_simple_key()?;
         self.decrease_flow_level();
 
@@ -2121,7 +2198,7 @@ impl<'input, T: Input> Scanner<'input, T> {
                 return Err(ScanError::new_str(
                     *start_mark,
                     "while parsing a quoted scalar, found unknown escape character",
-                ))
+                ));
             }
         }
         self.skip_n_non_blank(2);
@@ -2189,9 +2266,20 @@ impl<'input, T: Input> Scanner<'input, T> {
 
         loop {
             self.input.lookahead(4);
-            if (self.leading_whitespace && self.input.next_is_document_indicator())
+            if (self.mark.col == 0 && self.input.next_is_document_indicator())
                 || self.input.peek() == '#'
             {
+                // BS4K: If a `#` starts a comment after some separation spaces following content
+                // of a plain scalar in block context, and there is potential continuation on the
+                // next line, this is invalid. We cannot decide yet if there will be continuation,
+                // so record that a comment interrupted a plain scalar.
+                if self.input.peek() == '#'
+                    && !string.is_empty()
+                    && !self.buf_whitespaces.is_empty()
+                    && self.flow_level == 0
+                {
+                    self.interrupted_plain_by_comment = Some(self.mark);
+                }
                 break;
             }
 

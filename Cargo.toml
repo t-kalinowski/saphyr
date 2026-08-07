@@ -19,7 +19,6 @@ authors = [
   "David Aguilar <davvid@gmail.com>",
   "Yuheng Chen <yuhengchen@sensetime.com>"
 ]
-version = "0.0.6"
 documentation = "https://docs.rs/saphyr"
 keywords = [ "yaml", "parser" ]
 categories = [ "encoding", "parser-implementations" ]
@@ -28,9 +27,13 @@ description = "A fully YAML 1.2 compliant YAML library"
 repository = "https://github.com/saphyr-rs/saphyr"
 readme = "README.md"
 edition = "2021"
+# Public crates inherit this MSRV; internal tools declare their higher MSRV locally.
 rust-version = "1.71.0"
+version = "0.0.11"
 
 [workspace.dependencies]
+# Keep the saphyr-parser version in sync with workspace.package.version
+saphyr-parser = { path = "parser", version = "0.0.11" }
 arraydeque = { version = "0.5.1", default-features = false }
 encoding_rs = { version = "0.8.35" }
 # Keep in sync with hashlink to reduce dependency duplication
@@ -43,7 +46,6 @@ quickcheck = "1.1"
 rustyline = { version = "18.0.1", default-features = false }
 saphyr = { path = "saphyr" }
 saphyr-bench = { path = "bench" }
-saphyr-parser = { path = "parser" }
 thiserror = { version = "2.0.19", default-features = false }
 
 [workspace.lints.rust]
