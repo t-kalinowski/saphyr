@@ -6,6 +6,10 @@
 
 - Added `no_std` support
 
+**Breaking Changes**:
+
+- The minimum supported Rust version is now 1.85.0.
+
 ## v0.0.6
 
 **Fixes**:

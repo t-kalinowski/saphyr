@@ -11,7 +11,7 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-anyhow = { version = "1.0.102", features = ["backtrace"] }
-serde = { version = "1.0.228", features = ["derive"] }
+anyhow = { version = "1.0.104", features = ["backtrace"] }
+serde = { version = "1.0.229", features = ["derive"] }
 serde_yaml = "0.9.34"
-toml = "0.9.12"
+toml = "1.1.4"

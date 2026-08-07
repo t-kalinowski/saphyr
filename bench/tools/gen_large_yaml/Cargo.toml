@@ -11,5 +11,5 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-rand = { version = "0.8.6", features = [ "small_rng" ] }
+rand = "0.10.2"
 lipsum = "0.9.1"

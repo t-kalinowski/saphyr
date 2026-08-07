@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{rngs::SmallRng, RngExt, SeedableRng};
 
 /// The path into which the generated YAML files will be written.
 const OUTPUT_DIR: &str = "bench_yaml";
@@ -181,7 +181,7 @@ impl Generator {
         mut obj_creator: F,
     ) -> std::io::Result<()> {
         let mut first = true;
-        for _ in 0..self.rng.gen_range(len_lo..len_hi) {
+        for _ in 0..self.rng.random_range(len_lo..len_hi) {
             if first {
                 first = false;
             } else {
