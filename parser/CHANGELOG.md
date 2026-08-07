@@ -8,7 +8,7 @@
 
 **Breaking Changes**:
 
-- The minimum supported Rust version is now 1.85.0.
+- The minimum supported Rust version is now 1.71.0.
 
 ## v0.0.6
 

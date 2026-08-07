@@ -7,6 +7,19 @@ on:
       - master
 
 jobs:
+  msrv:
+    name: Check libraries using Rust 1.71.0
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - run: rustup toolchain install 1.71.0 --profile minimal --no-self-update
+      - uses: Swatinem/rust-cache@v2
+      - name: Check library crates
+        run: cargo +1.71.0 check --locked -p saphyr -p saphyr-parser -p saphyr-bench --all-features --lib
+      - name: Check `saphyr` without default features
+        run: cargo +1.71.0 check --locked -p saphyr --no-default-features --lib
+
   check:
     name: Lints and checks
     runs-on: ubuntu-latest

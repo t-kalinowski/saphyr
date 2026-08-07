@@ -8,9 +8,7 @@
 
 **Breaking Changes**:
 
-- The minimum supported Rust version is now 1.85.0.
-- Public mapping aliases now use `hashlink` 0.12. Downstream code that names
-  `hashlink` mapping types must use the 0.12 release line.
+- The minimum supported Rust version is now 1.71.0.
 - `LoadError` is now a `non_exhaustive` enum.
   This allows adding variants with features without violating the additive
   nature of Cargo features.

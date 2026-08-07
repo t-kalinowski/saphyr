@@ -9,6 +9,7 @@ description = "A helper to generate large YAML files"
 repository = "https://github.com/Ethiraric/yaml-rust2"
 readme = "README.md"
 edition = "2018"
+rust-version = "1.85.0"
 
 [dependencies]
 rand = "0.10.2"

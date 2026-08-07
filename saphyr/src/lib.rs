@@ -107,12 +107,12 @@
 //! ```
 //!
 //! # Features
-//! **Note:** With all features disabled, this crate's MSRV is `1.85.0`.
+//! **Note:** With all features disabled, this crate's MSRV is `1.71.0`.
 //!
 //! #### `encoding` (_enabled by default_)
 //! Enables encoding-aware decoding of Yaml documents.
 //!
-//! The MSRV for this feature is `1.85.0`.
+//! The MSRV for this feature is `1.71.0`.
 //!
 //! This feature is _not_ `no_std` compatible.
 //!
