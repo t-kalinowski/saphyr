@@ -1,8 +1,30 @@
 #![allow(clippy::too_many_arguments)]
 
+use std::sync::LazyLock;
+
 use rand::{distr::Alphanumeric, rngs::SmallRng, RngExt};
 
-// `lipsum` 0.9 uses Rand 0.8, so use its deterministic generator instead of its custom-RNG API.
+static LIPSUM_WORDS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    lipsum::LOREM_IPSUM
+        .split_whitespace()
+        .chain(lipsum::LIBER_PRIMUS.split_whitespace())
+        .collect()
+});
+
+/// Generate lipsum words using the outer generator's random state.
+fn lipsum_words(rng: &SmallRng, nwords: usize) -> String {
+    let mut rng = rng.clone();
+    let mut output = String::new();
+
+    for index in 0..nwords {
+        if index > 0 {
+            output.push(' ');
+        }
+        output.push_str(LIPSUM_WORDS[rng.random_range(0..LIPSUM_WORDS.len())]);
+    }
+
+    output
+}
 
 /// Generate a string with hexadecimal digits of the specified length.
 pub fn hex_string(rng: &mut SmallRng, len: usize) -> String {
@@ -76,7 +98,7 @@ pub fn paragraph(
 
     while ret.len() < nlines {
         let words_in_sentence = rng.random_range(wps_lo..wps_hi);
-        let mut sentence = lipsum::lipsum_words(words_in_sentence);
+        let mut sentence = lipsum_words(rng, words_in_sentence);
 
         if let Some(last_line) = ret.pop() {
             sentence = format!("{last_line} {sentence}");
@@ -125,7 +147,7 @@ pub fn name(rng: &mut SmallRng, len_lo: usize, len_hi: usize) -> String {
 /// Generate a set of words.
 pub fn words(rng: &mut SmallRng, words_lo: usize, words_hi: usize) -> String {
     let nwords = rng.random_range(words_lo..words_hi);
-    lipsum::lipsum_words(nwords).replace(|c| "-\'\",*:".contains(c), "")
+    lipsum_words(rng, nwords).replace(|c| "-\'\",*:".contains(c), "")
 }
 
 /// Generate a lipsum text.
@@ -162,4 +184,23 @@ pub fn text(
     }
 
     ret
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use rand::SeedableRng;
+
+    use super::*;
+
+    #[test]
+    fn equal_length_word_sequences_vary() {
+        let mut rng = SmallRng::seed_from_u64(0);
+        let samples = (0..32)
+            .map(|_| words(&mut rng, 10, 11))
+            .collect::<HashSet<_>>();
+
+        assert!(samples.len() > 1);
+    }
 }
