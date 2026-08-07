@@ -193,6 +193,9 @@ impl<'a> YamlEmitter<'a> {
     ///
     /// Each document is preceded by a document start marker (`---`) and
     /// followed by a newline.
+    ///
+    /// # Errors
+    /// Returns `EmitError` when an error occurs.
     pub fn dump_docs(&mut self, docs: &[Yaml]) -> EmitResult {
         for doc in docs {
             self.dump(doc)?;
