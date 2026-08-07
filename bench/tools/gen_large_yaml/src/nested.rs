@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{rngs::SmallRng, RngExt, SeedableRng};
 
 /// Create a deep object with the given amount of nodes.
 pub fn create_deep_object<W: std::io::Write>(
@@ -52,7 +52,7 @@ impl Tree {
         let new_node = Node::new_rc_refcell();
         let n_nodes = self.nodes.len();
         // Bias the nodes towards the end so that there is more nesting.
-        let parent = &mut self.nodes[self.rng.gen_range((3 * n_nodes / 4)..n_nodes)];
+        let parent = &mut self.nodes[self.rng.random_range((3 * n_nodes / 4)..n_nodes)];
         (**parent).borrow_mut().push_child(new_node.clone());
         self.nodes.push(new_node);
     }

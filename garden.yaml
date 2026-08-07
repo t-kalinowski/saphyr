@@ -1,49 +1,79 @@
 # Use "cargo install garden-tools" to install garden https://gitlab.com/garden-rs/garden
 #
 # usage:
-#   garden build
-#   garden test
-#   garden check
-#   garden fmt
-#   garden fix
+#   garden build                      # Build all crates
+#   garden test                       # Run the test suite
+#   garden check -vv                  # Run automated checks, verbosely
+#   garden fmt                        # Run the code formatter
+#   garden fix                        # Apply cargo clippy fixes
+#   garden pull/yaml-test-suite       # Fetch and merge yaml-test-suite updates
 
 commands:
-    bench: cargo bench "$@"
-    build: cargo build --all-targets ${workspace} ${release} "$@"
-    check>:
-        - check/clippy
-        - check/fmt
-        - build
-        - test
-        - doc
-    check/clippy: cargo clippy --all-targets ${workspace} ${release} -- -D warnings
-    check/fmt: cargo fmt --check
-    doc: cargo doc ${workspace} --all-features
-    fix: cargo clippy --all-targets ${workspace} --fix "$@" -- -D warnings
-    fmt: cargo fmt
-    test: |
-      cargo test ${release}
-      cargo test ${release} --doc
-    watch: cargo watch --shell "garden check"
+  bench: cargo bench "$@"
+  build: cargo build --all-targets ${workspace} ${release} "$@"
+  check>:
+    - check/clippy
+    - check/fmt
+    - check/msrv
+    - check/no-std
+    - build
+    - test
+    - doc
+  check/clippy: cargo clippy --all-targets ${workspace} ${release} -- -D warnings
+  check/fmt: cargo fmt --check
+  check/msrv: |
+    if type cargo-msrv >/dev/null 2>&1
+    then
+        cargo msrv --path bench verify
+        cargo msrv --path bench/tools/bench_compare verify
+        cargo msrv --path bench/tools/gen_large_yaml verify
+        cargo msrv --path fuzz verify
+        cargo msrv --path parser verify
+        cargo msrv --path parser/tools/walk verify
+        cargo msrv --path saphyr verify
+    fi
+  check/no-std: cargo check -p saphyr --no-default-features --target wasm32v1-none
+  doc: RUSTDOCFLAGS="-D warnings" cargo doc ${workspace} --all-features --document-private-items
+  fix: cargo clippy --all-targets ${workspace} --fix "$@" -- -D warnings
+  fmt: cargo fmt
+  fuzz: CARGO_PROFILE_RELEASE_LTO=false cargo +nightly fuzz run parse
+  publish: |
+    cargo publish --package saphyr-parser "$@"
+    cargo publish --package saphyr "$@"
+    cargo publish --package saphyr-bench "$@"
+  test: |
+    cargo test ${release}
+    cargo test ${release} --doc
+  watch: cargo watch --shell "garden check"
 
 variables:
   workspace: ""
   # Debug build: garden build -D release=''
   release: "--release"
 
-environment:
-  RUSTDOCFLAGS: "-D warnings"
-
 trees:
   saphyr-workspace:
-    description: Saphyr tools and libraries
+    description: A set of crates dedicated to parsing YAML.
     path: ${GARDEN_CONFIG_DIR}
     url: "git@github.com:saphyr-rs/saphyr.git"
     variables:
       workspace: "--workspace"
     remotes:
-      mkniewallner: https://github.com/mkniewallner/saphyr
-      yaml-test-suite: https://github.com/yaml/yaml-test-suite
+      bourumir-wyngs: "https://github.com/bourumir-wyngs/saphyr.git"
+      duckduckwhale: "https://github.com/DuckDuckWhale/saphyr.git"
+      facet-rs: "https://github.com/facet-rs/saphyr.git"
+      jeanmertz: "https://github.com/JeanMertz/saphyr.git"
+      lava-sh: "https://github.com/lava-sh/saphyr.git"
+      yaml-test-suite: "https://github.com/yaml/yaml-test-suite.git"
+    commands:
+      pull/yaml-test-suite>:
+        - fetch/yaml-test-suite
+        - merge/yaml-test-suite
+      fetch/yaml-test-suite: git fetch yaml-test-suite
+      merge/yaml-test-suite: |
+        git merge --squash --allow-unrelated-histories \
+            -s subtree -X theirs \
+            -X subtree=parser/tests/yaml-test-suite/ yaml-test-suite/main
   saphyr:
     description: |
       The high-level saphyr crate provides quick-and-easy YAML importing,

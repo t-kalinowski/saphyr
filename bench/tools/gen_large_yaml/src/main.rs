@@ -1,13 +1,13 @@
 #![allow(dead_code)]
 
-mod gen;
+mod r#gen;
 mod nested;
 
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{rngs::SmallRng, RngExt, SeedableRng};
 
 /// The path into which the generated YAML files will be written.
 const OUTPUT_DIR: &str = "bench_yaml";
@@ -78,8 +78,12 @@ impl Generator {
         words_lo: usize,
         words_hi: usize,
     ) -> std::io::Result<()> {
-        self.gen_array(writer, items_lo, items_hi, |gen, writer| {
-            write!(writer, "{}", gen::words(&mut gen.rng, words_lo, words_hi))
+        self.gen_array(writer, items_lo, items_hi, |generator, writer| {
+            write!(
+                writer,
+                "{}",
+                r#gen::words(&mut generator.rng, words_lo, words_hi)
+            )
         })
     }
 
@@ -92,54 +96,62 @@ impl Generator {
         let fields: Vec<(String, Box<GenFn<W>>)> = vec![
             (
                 "description".to_string(),
-                Box::new(|gen, w| {
+                Box::new(|generator, w| {
                     write!(w, "|")?;
-                    gen.push_indent(2);
-                    gen.nl(w)?;
-                    let indent = gen.indent();
-                    let text = gen::text(&mut gen.rng, 1, 9, 3, 8, 10, 20, 80 - indent);
-                    gen.write_lines(w, &text)?;
-                    gen.pop_indent();
+                    generator.push_indent(2);
+                    generator.nl(w)?;
+                    let indent = generator.indent();
+                    let text = r#gen::text(&mut generator.rng, 1, 9, 3, 8, 10, 20, 80 - indent);
+                    generator.write_lines(w, &text)?;
+                    generator.pop_indent();
                     Ok(())
                 }),
             ),
             (
                 "authors".to_string(),
-                Box::new(|gen, w| {
-                    gen.push_indent(2);
-                    gen.nl(w)?;
-                    gen.gen_authors_array(w, 1, 10)?;
-                    gen.pop_indent();
+                Box::new(|generator, w| {
+                    generator.push_indent(2);
+                    generator.nl(w)?;
+                    generator.gen_authors_array(w, 1, 10)?;
+                    generator.pop_indent();
                     Ok(())
                 }),
             ),
             (
                 "hash".to_string(),
-                Box::new(|gen, w| write!(w, "{}", gen::hex_string(&mut gen.rng, 64))),
+                Box::new(|generator, w| write!(w, "{}", r#gen::hex_string(&mut generator.rng, 64))),
             ),
             (
                 "version".to_string(),
-                Box::new(|gen, w| write!(w, "{}", gen::integer(&mut gen.rng, 1, 9))),
+                Box::new(|generator, w| write!(w, "{}", r#gen::integer(&mut generator.rng, 1, 9))),
             ),
             (
                 "home".to_string(),
-                Box::new(|gen, w| {
-                    write!(w, "{}", gen::url(&mut gen.rng, "https", 0, 1, 0, 0, None))
+                Box::new(|generator, w| {
+                    write!(
+                        w,
+                        "{}",
+                        r#gen::url(&mut generator.rng, "https", 0, 1, 0, 0, None)
+                    )
                 }),
             ),
             (
                 "repository".to_string(),
-                Box::new(|gen, w| {
-                    write!(w, "{}", gen::url(&mut gen.rng, "git", 1, 4, 10, 20, None))
+                Box::new(|generator, w| {
+                    write!(
+                        w,
+                        "{}",
+                        r#gen::url(&mut generator.rng, "git", 1, 4, 10, 20, None)
+                    )
                 }),
             ),
             (
                 "pdf".to_string(),
-                Box::new(|gen, w| {
+                Box::new(|generator, w| {
                     write!(
                         w,
                         "{}",
-                        gen::url(&mut gen.rng, "https", 1, 4, 10, 30, Some("pdf"))
+                        r#gen::url(&mut generator.rng, "https", 1, 4, 10, 30, Some("pdf"))
                     )
                 }),
             ),
@@ -162,11 +174,13 @@ impl Generator {
         let fields: Vec<(String, Box<GenFn<W>>)> = vec![
             (
                 "name".to_string(),
-                Box::new(|gen, w| write!(w, "{}", gen::full_name(&mut gen.rng, 10, 15))),
+                Box::new(|generator, w| {
+                    write!(w, "{}", r#gen::full_name(&mut generator.rng, 10, 15))
+                }),
             ),
             (
                 "email".to_string(),
-                Box::new(|gen, w| write!(w, "{}", gen::email(&mut gen.rng, 1, 9))),
+                Box::new(|generator, w| write!(w, "{}", r#gen::email(&mut generator.rng, 1, 9))),
             ),
         ];
         self.gen_object(writer, fields)
@@ -181,7 +195,7 @@ impl Generator {
         mut obj_creator: F,
     ) -> std::io::Result<()> {
         let mut first = true;
-        for _ in 0..self.rng.gen_range(len_lo..len_hi) {
+        for _ in 0..self.rng.random_range(len_lo..len_hi) {
             if first {
                 first = false;
             } else {

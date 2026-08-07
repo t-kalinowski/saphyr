@@ -2,6 +2,7 @@
 
 use core::fmt;
 
+use ordered_float::FloatCore;
 use thiserror::Error;
 
 use crate::{
@@ -193,6 +194,9 @@ impl<'a> YamlEmitter<'a> {
     ///
     /// Each document is preceded by a document start marker (`---`) and
     /// followed by a newline.
+    ///
+    /// # Errors
+    /// Returns `EmitError` when an error occurs.
     pub fn dump_docs(&mut self, docs: &[Yaml]) -> EmitResult {
         for doc in docs {
             self.dump(doc)?;
@@ -236,7 +240,11 @@ impl<'a> YamlEmitter<'a> {
                 Ok(())
             }
             Yaml::Value(Scalar::Integer(v)) => Ok(write!(self.writer, "{v}")?),
-            Yaml::Value(Scalar::FloatingPoint(ref v)) => Ok(write!(self.writer, "{v}")?),
+            Yaml::Value(Scalar::FloatingPoint(ref v)) => Ok(write!(
+                self.writer,
+                "{v}{}",
+                if v.fract() == 0.0 { ".0" } else { "" }
+            )?),
             Yaml::Value(Scalar::Null) | Yaml::BadValue => Ok(write!(self.writer, "~")?),
             Yaml::Representation(ref v, style, ref tag) => {
                 if let Some(tag) = tag {

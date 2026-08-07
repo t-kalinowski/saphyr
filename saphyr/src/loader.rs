@@ -222,10 +222,7 @@ fn should_preserve_collection_tag(tag: &Tag) -> bool {
         return true;
     }
 
-    match tag.suffix.as_str() {
-        "seq" | "map" => false,
-        _ => true,
-    }
+    !matches!(tag.suffix.as_str(), "seq" | "map")
 }
 
 impl<'input, Node> YamlLoader<'input, Node>

@@ -181,6 +181,23 @@ pub struct Parser<'input, T: Input> {
     keep_tags: bool,
 }
 
+impl<T: Input + Clone> Clone for Parser<'_, T> {
+    fn clone(&self) -> Self {
+        Self {
+            scanner: self.scanner.clone(),
+            states: self.states.clone(),
+            state: self.state,
+            token: self.token.clone(),
+            current: self.current.clone(),
+            anchors: self.anchors.clone(),
+            anchor_id_count: self.anchor_id_count,
+            tags: self.tags.clone(),
+            stream_end_emitted: self.stream_end_emitted,
+            keep_tags: self.keep_tags,
+        }
+    }
+}
+
 /// Trait to be implemented in order to use the low-level parsing API.
 ///
 /// The low-level parsing API is event-based (a push parser), calling [`EventReceiver::on_event`]
@@ -671,6 +688,7 @@ impl<'input, T: Input> Parser<'input, T> {
                 _,
                 TokenType::VersionDirective(..)
                 | TokenType::TagDirective(..)
+                | TokenType::ReservedDirective(..)
                 | TokenType::DocumentStart,
             ) => {
                 // explicit document
@@ -710,9 +728,15 @@ impl<'input, T: Input> Parser<'input, T> {
                 }
                 Token(mark, TokenType::TagDirective(handle, prefix)) => {
                     if tags.contains_key(&**handle) {
-                        return Err(ScanError::new_str(mark.start, "the TAG directive must only be given at most once per handle in the same document"));
+                        return Err(ScanError::new_str(
+                            mark.start,
+                            "the TAG directive must only be given at most once per handle in the same document",
+                        ));
                     }
                     tags.insert(handle.to_string(), prefix.to_string());
+                }
+                Token(_, TokenType::ReservedDirective(_, _)) => {
+                    // Reserved directives are ignored
                 }
                 _ => break,
             }
@@ -750,6 +774,7 @@ impl<'input, T: Input> Parser<'input, T> {
                 mark,
                 TokenType::VersionDirective(..)
                 | TokenType::TagDirective(..)
+                | TokenType::ReservedDirective(..)
                 | TokenType::DocumentStart
                 | TokenType::DocumentEnd
                 | TokenType::StreamEnd,
@@ -782,8 +807,12 @@ impl<'input, T: Input> Parser<'input, T> {
         if explicit_end {
             self.state = State::ImplicitDocumentStart;
         } else {
-            if let Token(span, TokenType::VersionDirective(..) | TokenType::TagDirective(..)) =
-                *self.peek_token()?
+            if let Token(
+                span,
+                TokenType::VersionDirective(..)
+                | TokenType::TagDirective(..)
+                | TokenType::ReservedDirective(..),
+            ) = *self.peek_token()?
             {
                 return Err(ScanError::new_str(
                     span.start,
@@ -823,7 +852,7 @@ impl<'input, T: Input> Parser<'input, T> {
                             return Err(ScanError::new_str(
                                 span.start,
                                 "while parsing node, found unknown anchor",
-                            ))
+                            ));
                         }
                         Some(id) => return Ok((Event::Alias(*id), span)),
                     }
@@ -983,10 +1012,12 @@ impl<'input, T: Input> Parser<'input, T> {
                     if !first {
                         match *self.peek_token()? {
                             Token(_, TokenType::FlowEntry) => self.skip(),
-                            Token(span, _) => return Err(ScanError::new_str(
-                                span.start,
-                                "while parsing a flow mapping, did not find expected ',' or '}'",
-                            )),
+                            Token(span, _) => {
+                                return Err(ScanError::new_str(
+                                    span.start,
+                                    "while parsing a flow mapping, did not find expected ',' or '}'",
+                                ));
+                            }
                         }
                     }
 
